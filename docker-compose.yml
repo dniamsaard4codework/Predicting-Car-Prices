@@ -1,0 +1,56 @@
+
+services:
+  car-price-app:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: car-price-predictor
+    ports:
+      - "8050:8050"
+    environment:
+      - PORT=8050
+      - DEBUG=False
+      - PYTHONPATH=/app
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8050/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.car-price-app.rule=Host(`localhost`)"
+      - "traefik.http.services.car-price-app.loadbalancer.server.port=8050"
+    networks:
+      - car-price-network
+
+  # Optional Jupyter service (uncomment if needed)
+  # jupyter-lab:
+  #   build: 
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: jupyter-car-price
+  #   ports:
+  #     - "8888:8888"
+  #   environment:
+  #     - JUPYTER_ENABLE_LAB=yes
+  #     - PYTHONPATH=/app
+  #   command: jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''
+  #   volumes:
+  #     - ./notebook:/app/notebook
+  #     - ./data:/app/data
+  #   networks:
+  #     - car-price-network
+
+networks:
+  car-price-network:
+    driver: bridge
