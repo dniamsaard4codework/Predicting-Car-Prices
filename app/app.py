@@ -1,4 +1,5 @@
 
+# Import required libraries
 import joblib
 import numpy as np
 import pandas as pd
@@ -7,7 +8,7 @@ import dash
 from dash import html, dcc, callback
 from dash.dependencies import Input, Output, State
 
-# Load the trained pipeline (preprocessor + model)
+# Load the trained model from multiple possible paths
 MODEL_PATHS = [
     "./car_price.model",  # For Docker deployment
     "./model/car_price.model",  # For root directory local development
@@ -28,10 +29,11 @@ for MODEL_PATH in MODEL_PATHS:
 if model is None:
     raise RuntimeError("No valid model found in any of the expected paths")
 
+# Initialize Dash application
 app = dash.Dash(__name__, suppress_callback_exceptions=True)
 server = app.server  # for gunicorn if needed later
 
-# Add CSS styling
+# Add CSS styling for better UI appearance
 app.index_string = '''
 <!DOCTYPE html>
 <html>
@@ -116,7 +118,7 @@ app.index_string = '''
 </html>
 '''
 
-# Navigation bar component
+# Create navigation bar component
 def create_navbar(current_page):
     return html.Div([
         html.Div([
@@ -132,7 +134,7 @@ def create_navbar(current_page):
         ], className="nav-container")
     ], className="nav-bar")
 
-# Instructions page layout
+# Create instructions page layout
 def instructions_layout():
     return html.Div([
         create_navbar('home'),
@@ -144,7 +146,7 @@ def instructions_layout():
                         style={'textAlign': 'center', 'color': '#7f8c8d', 'marginBottom': '30px'}),
                 html.H3("How the Prediction System Works", style={'color': '#34495e', 'marginBottom': '20px'}),
                 html.P([
-                    "Our car price prediction system uses advanced machine learning (XGBoost) trained on Indian car market data. "
+                    "Car price prediction system uses advanced machine learning (XGBoost) trained on car market data. "
                     "The model analyzes multiple factors including car specifications, condition, and market trends to provide "
                     "accurate price estimates for used cars."
                 ], style={'lineHeight': '1.6', 'fontSize': '16px', 'color': '#555'}),
@@ -154,14 +156,14 @@ def instructions_layout():
                     html.Li("Navigate to the 'Predict Price' page using the navigation bar above"),
                     html.Li("Fill in the car details you know in the input form"),
                     html.Li("Don't worry if you don't have all information - you can skip any field"),
-                    html.Li("For missing fields, our system uses smart imputation techniques to fill reasonable defaults"),
+                    html.Li("For missing fields, system uses smart imputation techniques to fill reasonable defaults"),
                     html.Li("Click the 'Predict Price' button to submit your data"),
                     html.Li("The predicted price will appear below the form within moments")
                 ], style={'lineHeight': '1.8', 'fontSize': '16px', 'color': '#555'}),
                 
                 html.H3("Missing Data Handling", style={'color': '#34495e', 'marginTop': '30px', 'marginBottom': '20px'}),
                 html.P([
-                    "Our system intelligently handles missing information using the trained pipeline's imputation strategies learned from market data:"
+                    "System intelligently handles missing information using the trained pipeline's imputation strategies learned from market data:"
                 ], style={'lineHeight': '1.6', 'fontSize': '16px', 'color': '#555'}),
                 html.Ul([
                     html.Li("Numerical fields (Year, Kilometers, Owner, Engine, Power): Uses median from training data"),
@@ -200,7 +202,7 @@ def instructions_layout():
         ], className="container")
     ])
 
-# Helper functions for form elements
+# Create helper functions for form elements
 def labeled_input(label, id_, type_="number", placeholder="", **kwargs):
     return html.Div([
         html.Label(label, style={"marginBottom": "8px", "display": "block", "color": "#2c3e50", "fontWeight": "bold"}),
@@ -236,7 +238,7 @@ def labeled_dropdown(label, id_, options, value=None):
         )
     ], style={"marginBottom": "20px"})
 
-# Prediction page layout
+# Create prediction page layout
 def prediction_layout():
     return html.Div([
         create_navbar('predict'),
@@ -291,13 +293,13 @@ def prediction_layout():
         ], className="container")
     ])
 
-# Main app layout with URL routing
+# Set up main app layout with URL routing
 app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
     html.Div(id='page-content')
 ])
 
-# Callback for URL routing
+# Handle URL routing to display correct page
 @app.callback(Output('page-content', 'children'),
               Input('url', 'pathname'))
 def display_page(pathname):
@@ -306,7 +308,7 @@ def display_page(pathname):
     else:  # Default to instructions page
         return instructions_layout()
 
-# Callback for prediction
+# Handle price prediction when button is clicked
 @app.callback(
     Output("result-section", "children"),
     Input("predict", "n_clicks"),
@@ -327,7 +329,7 @@ def predict_price(n_clicks, year, km, fuel, transmission, owner, mileage, engine
                   style={'textAlign': 'center', 'color': '#7f8c8d', 'fontSize': '16px'})
         ])
     
-    # Owner mapping from text to numbers
+    # Map owner text to numeric values for model input
     owner_mapping = {
         'First Owner': 1,
         'Second Owner': 2,
@@ -335,10 +337,17 @@ def predict_price(n_clicks, year, km, fuel, transmission, owner, mileage, engine
         'Fourth & Above Owner': 4
     }
     
-    # Map owner text to number if provided
+    # Convert owner text to number if provided
     owner_num = owner_mapping.get(owner) if owner is not None else None
-    
-    # Build input row with the exact format the saved model expects
+
+    # Map Brand for Land Rover and Ashok Leyland
+    brand_mapping = {
+        'Land Rover': 'Land Rover',
+        'Ashok Leyland': 'Ashok Leyland'
+    }
+    brand = brand_mapping.get(brand) if brand is not None else None
+
+    # Prepare input data for model prediction
     # Leave missing values as NaN/None - the pipeline will handle imputation
     row = pd.DataFrame([{
         "year": float(year) if year is not None else np.nan,
@@ -352,15 +361,15 @@ def predict_price(n_clicks, year, km, fuel, transmission, owner, mileage, engine
         "mileage": float(mileage) if mileage is not None else np.nan,  # Model expects numeric mileage
     }])
 
-    # Track which fields have missing values for user feedback
+    # Track which fields are missing for user feedback
     imputed_fields = []
     for col in row.columns:
         if pd.isna(row.at[0, col]) or row.at[0, col] is None:
             imputed_fields.append(col)
 
-    # Predict log(price) then exponentiate to get INR
+    # Make prediction and convert from log scale to price
     try:
-        # Debug: Check the input data
+        # Debug information for troubleshooting
         print("Input row shape:", row.shape)
         print("Input row columns:", list(row.columns))
         print("Input row values:", row.iloc[0].to_dict())
@@ -372,13 +381,13 @@ def predict_price(n_clicks, year, km, fuel, transmission, owner, mileage, engine
         print(f"Predicted log price: {pred_log:.4f}")
         print(f"Predicted price: {price:.2f}")
         
-        # Create result display with imputation information
+        # Display prediction results with styling
         result_content = [
             html.H2(f"Estimated Price: {price:,.0f}", 
                    style={'textAlign': 'center', 'color': '#27ae60', 'fontSize': '32px', 'marginBottom': '20px'}),
         ]
         
-        # Add imputation information if any fields were filled automatically
+        # Show imputation information if fields were auto-filled
         if imputed_fields:
             imputation_mapping = {
                 "year": "Year → Median from training data",
@@ -414,8 +423,6 @@ def predict_price(n_clicks, year, km, fuel, transmission, owner, mileage, engine
         result_content.extend([
             html.Hr(style={'margin': '30px 0'}),
             html.Div([
-                html.P("This prediction is based on Indian used car market data.", 
-                      style={'color': '#7f8c8d', 'textAlign': 'center', 'fontSize': '14px', 'marginBottom': '5px'}),
                 html.P("Model trained on Petrol & Diesel vehicles only.", 
                       style={'color': '#e74c3c', 'textAlign': 'center', 'fontSize': '14px', 'fontWeight': 'bold'})
             ])
@@ -444,8 +451,9 @@ def predict_price(n_clicks, year, km, fuel, transmission, owner, mileage, engine
             'marginTop': '20px'
         })
 
+# Start the application
 if __name__ == "__main__":
-    # Get port from environment variable for deployment flexibility
+    # Get configuration from environment variables
     port = int(os.environ.get("PORT", 8050))
     debug = os.environ.get("DEBUG", "True").lower() == "true"
     
