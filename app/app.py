@@ -340,12 +340,16 @@ def predict_price(n_clicks, year, km, fuel, transmission, owner, mileage, engine
     # Convert owner text to number if provided
     owner_num = owner_mapping.get(owner) if owner is not None else None
 
-    # Map Brand for Land Rover and Ashok Leyland
+    # Map Brand for Land Rover and Ashok Leyland, otherwise keep original brand
     brand_mapping = {
-        'Land Rover': 'Land Rover',
-        'Ashok Leyland': 'Ashok Leyland'
+        'Land Rover': 'Land',
+        'Ashok Leyland': 'Ashok'
     }
-    brand = brand_mapping.get(brand) if brand is not None else None
+    if brand is not None:
+        if brand in brand_mapping:
+            brand = brand_mapping.get(brand, brand)
+    else:
+        brand = None
 
     # Prepare input data for model prediction
     # Leave missing values as NaN/None - the pipeline will handle imputation

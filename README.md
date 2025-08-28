@@ -6,6 +6,12 @@ Predict used car prices with a simple web interface powered by XGBoost.
 ## Quick Start
 
 ```bash
+# Clone the repository
+git clone https://github.com/dniamsaard4codework/Predicting-Car-Prices.git
+
+# Change directory to the project
+cd Predicting-Car-Prices
+
 # Start the application
 docker-compose up --build -d
 
